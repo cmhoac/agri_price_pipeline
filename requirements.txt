@@ -1,0 +1,8 @@
+pandas
+beautifulsoup4
+requests
+polars
+pandera
+sqlalchemy
+psycopg2-binary
+pyarrow

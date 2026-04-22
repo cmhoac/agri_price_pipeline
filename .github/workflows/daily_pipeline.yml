@@ -1,0 +1,56 @@
+name: Daily Agri-Price Pipeline
+
+on:
+  schedule:
+    # 02:00 UTC == 09:00 AM VN time
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Cho phép click nút để chạy thủ công trên GitHub
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout mã nguồn
+        uses: actions/checkout@v4
+
+      - name: Cài đặt Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Cài đặt thư viện
+        run: pip install -r requirements.txt
+        
+      - name: Chạy Pipeline (Cào -> Làm sạch -> Đẩy lên Neon Database)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python run_pipeline.py
+        
+      - name: Gửi Email Thông Báo Thành Công
+        if: success()
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          if [ ! -z "$SMTP_USER" ]; then
+            python -c "
+          import smtplib, os, datetime
+          from email.mime.text import MIMEText
+          msg = MIMEText('Hệ thống Serverless Data Pipeline trên GitHub Actions đã chạy thành công và đẩy dữ liệu lên Neon DB.')
+          msg['Subject'] = f'✅ [Agri-Pipeline Cloud] Cập nhật thành công {datetime.date.today()}'
+          msg['From'] = os.environ['SMTP_USER']
+          msg['To'] = os.environ['SMTP_USER']
+          try:
+              server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+              server.login(os.environ['SMTP_USER'], os.environ['SMTP_PASSWORD'])
+              server.send_message(msg)
+              server.quit()
+              print('Đã gửi email thông báo thành công.')
+          except Exception as e:
+              print(f'Lỗi khi gửi email: {e}')
+          "
+          else
+            print "Không tìm thấy SMTP_USER. Bỏ qua gửi email."
+          fi

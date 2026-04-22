@@ -1,0 +1,84 @@
+# --- ĐỊNH NGHĨA CẤU HÌNH CHUNG CHO CÁC CONTAINER AIRFLOW ---
+x-airflow-common:
+  &airflow-common
+  image: apache/airflow:2.8.1
+  environment:
+    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+    - AIRFLOW__CORE__LOAD_EXAMPLES=False
+    # Lệnh siêu quan trọng: Tự động cài đặt thư viện khi Airflow khởi động!
+    - _PIP_ADDITIONAL_REQUIREMENTS=pandas beautifulsoup4 requests polars pandera sqlalchemy psycopg2-binary pyarrow
+    # Thêm thư mục gốc vào PYTHONPATH để Airflow đọc được thư mục src/
+    - PYTHONPATH=/opt/airflow
+    # Thêm dòng này để cấp mật khẩu chung cho Webserver và Scheduler đọc Log:
+    - AIRFLOW__WEBSERVER__SECRET_KEY=mat_khau_bi_mat_cho_airflow_123
+    # Cấu hình SMTP để Airflow gửi email thông báo:
+    - AIRFLOW__SMTP__SMTP_HOST=smtp.gmail.com
+    - AIRFLOW__SMTP__SMTP_STARTTLS=True
+    - AIRFLOW__SMTP__SMTP_SSL=False
+    - AIRFLOW__SMTP__SMTP_USER=congminhhoac@gmail.com
+    - AIRFLOW__SMTP__SMTP_PASSWORD=hkcy ubtb qbgx ecwu
+    - AIRFLOW__SMTP__SMTP_PORT=587
+    - AIRFLOW__SMTP__SMTP_MAIL_FROM=congminhhoac@gmail.com
+  volumes:
+    # Ánh xạ thư mục máy thật vào trong container của Airflow
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./data:/opt/airflow/data
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # 1. DATABASE POSTGRESQL: Lưu trữ trạng thái của Airflow
+  postgres:
+    image: google/alloydbomni:latest
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_DB=airflow
+    shm_size: '1gb'
+    volumes:
+      - alloydb_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      timeout: 5s
+
+  # 2. KHỞI TẠO AIRFLOW: Chạy 1 lần đầu để tạo Database và User
+  airflow-init:
+    <<: *airflow-common
+    command: version
+    environment:
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
+      - _AIRFLOW_DB_UPGRADE=True
+      - _AIRFLOW_WWW_USER_CREATE=True
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 3. WEBSERVER: Giao diện điều khiển Airflow trên trình duyệt
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports:
+      - "8080:8080"
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  # 4. SCHEDULER: Trái tim lập lịch của Airflow
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+volumes:
+  alloydb_data:
