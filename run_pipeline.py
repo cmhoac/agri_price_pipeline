@@ -1,14 +1,19 @@
 import os
 import sys
 import logging
+import subprocess
 from datetime import datetime
-
-from src.extract.scraper import fetch_durian_prices, fetch_pepper_prices, fetch_cashew_prices
-from src.transform.cleaner import clean_durian_data, clean_pepper_data, clean_cashew_data
-from src.transform.gold_maker import create_gold_layer
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s', handlers=[logging.StreamHandler(sys.stdout)])
 logger = logging.getLogger("PipelineRunner")
+
+def run_step(script_path, run_date, step_name):
+    try:
+        subprocess.run([sys.executable, script_path, run_date], check=True)
+        logger.info(f"✅ {step_name} thành công.")
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ Lỗi khi chạy {script_path}: {e}")
+        sys.exit(1)
 
 def run():
     run_date = datetime.now().strftime('%Y-%m-%d')
@@ -16,19 +21,15 @@ def run():
     
     # 1. EXTRACT
     logger.info("--- BƯỚC 1: EXTRACT (BRONZE) ---")
-    fetch_durian_prices()
-    fetch_pepper_prices()
-    fetch_cashew_prices()
+    run_step("src/extract/scraper.py", run_date, "Cào dữ liệu Bronze")
     
     # 2. TRANSFORM
     logger.info("--- BƯỚC 2: CLEAN (SILVER) ---")
-    clean_durian_data(run_date)
-    clean_pepper_data(run_date)
-    clean_cashew_data(run_date)
+    run_step("src/transform/cleaner.py", run_date, "Làm sạch dữ liệu Silver")
     
     # 3. LOAD
     logger.info("--- BƯỚC 3: WAREHOUSE (GOLD) ---")
-    create_gold_layer(run_date)
+    run_step("src/transform/gold_maker.py", run_date, "Tạo Gold Layer & Lưu Database")
     
     logger.info("🎉 TẤT CẢ DỮ LIỆU ĐÃ ĐƯỢC ĐẨY LÊN CLOUD THÀNH CÔNG! 🎉")
 
