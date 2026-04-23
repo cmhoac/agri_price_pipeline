@@ -52,5 +52,5 @@ jobs:
               print(f'Lỗi khi gửi email: {e}')
           "
           else
-            print "Không tìm thấy SMTP_USER. Bỏ qua gửi email."
+            echo "Không tìm thấy SMTP_USER. Bỏ qua gửi email."
           fi

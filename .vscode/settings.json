@@ -6,14 +6,10 @@
     },
     "sqltools.connections": [
         {
-            "ssh": "Disabled",
             "previewLimit": 50,
-            "server": "localhost",
-            "port": 5432,
             "driver": "PostgreSQL",
-            "database": "airflow",
-            "username": "airflow",
-            "name": "agri_price_pipeline"
+            "name": "Neon Cloud DB",
+            "connectString": "postgres://neondb_owner:npg_PS3BvUyViL6a@ep-wandering-rice-ao72uw5q-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?ssl=true&sslmode=require&options=endpoint%3Dep-wandering-rice-ao72uw5q-pooler"
         }
     ]
 }
