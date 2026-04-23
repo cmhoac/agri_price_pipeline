@@ -4,6 +4,10 @@ import sys
 import logging
 from datetime import datetime
 from sqlalchemy import create_engine, text
+from dotenv import load_dotenv # <-- Thêm thư viện đọc file .env
+
+# Kích hoạt việc đọc file .env (nếu file tồn tại ở Local)
+load_dotenv()
 
 # ==========================================
 # 1. Cấu hình Logging
@@ -16,24 +20,25 @@ logging.basicConfig(
 logger = logging.getLogger("GoldMaker")
 
 def get_db_engine():
-    """Lấy kết nối SQLAlchemy tới PostgreSQL. Hỗ trợ Cloud, Docker, và Local."""
-    db_url = os.environ.get('DATABASE_URL')
-    if db_url:
-        logger.info("☁️ Tìm thấy DATABASE_URL, đang kết nối tới Cloud Database...")
-        db_url = db_url.replace("postgres://", "postgresql+psycopg2://")
-        return create_engine(db_url, pool_pre_ping=True)
-
+    """Lấy kết nối SQLAlchemy tới PostgreSQL (Neon Cloud DB) qua Két sắt bảo mật."""
+    
+    # 1. Lấy chìa khóa từ file .env (nếu chạy trên máy bạn) hoặc từ Secrets (nếu chạy trên GitHub Actions)
+    db_url = os.getenv("NEON_DB_URL")
+    
+    if not db_url:
+        logger.error("❌ LỖI BẢO MẬT: Không tìm thấy biến môi trường NEON_DB_URL!")
+        raise ValueError("Chưa cấu hình NEON_DB_URL trong file .env hoặc GitHub Secrets.")
+    
     try:
-        # Cố gắng kết nối tới host 'postgres' (nếu chạy trong Airflow Docker container)
-        engine = create_engine('postgresql+psycopg2://airflow:airflow@postgres:5432/airflow', connect_args={'connect_timeout': 3})
-        engine.connect()
-        logger.info("✅ Kết nối PostgreSQL qua Docker (host: postgres) thành công.")
+        # 2. Tạo động cơ kết nối
+        # Chú ý: pool_pre_ping=True cực kỳ quan trọng khi dùng Serverless DB như Neon 
+        # để máy chủ tự động kiểm tra xem kết nối mạng có bị rớt không trước khi gửi dữ liệu.
+        engine = create_engine(db_url, pool_pre_ping=True)
+        logger.info("☁️ Đã nạp chìa khóa thành công. Sẵn sàng kết nối tới Neon Cloud Database...")
         return engine
-    except Exception:
-        # Nếu lỗi (chạy local trên host Windows), chuyển sang localhost
-        logger.info("⚠️ Không tìm thấy host 'postgres', chuyển sang '127.0.0.1'...")
-        engine = create_engine('postgresql+psycopg2://airflow:airflow@127.0.0.1:5432/airflow')
-        return engine
+    except Exception as e:
+        logger.error(f"❌ Không thể khởi tạo kết nối tới Database: {str(e)}")
+        raise
 
 def process_silver_file(file_path, phan_hang_default=None):
     if not os.path.exists(file_path):

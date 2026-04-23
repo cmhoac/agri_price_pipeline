@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 import os
 import sys
 import logging
-import pandera as pa
+import pandera.polars as pa
 from pandera.typing.polars import DataFrame
 from datetime import datetime
 
@@ -30,23 +30,22 @@ REGION_MAP = {
     "Đăk Nông": "Đắk Nông",
     "Đắc Nông": "Đắk Nông"
 }
-# Chuyển đổi Polars DF sang Pandas DF để Pandera kiểm tra chính xác (với các phiên bản Pandera cũ)
-# hoặc dùng trực tiếp. Ở đây ta dùng Pandera DataFrameSchema chung.
+
+# Khai báo Schema sử dụng chuẩn Type của Polars
 silver_schema = pa.DataFrameSchema({
-    "Loại nông sản": pa.Column(str, nullable=False),
-    "Phân hạng": pa.Column(str, nullable=True),
-    "Khu vực": pa.Column(str, nullable=False),
-    "Ngày thu thập": pa.Column(str, nullable=False),
-    "Giá thấp nhất": pa.Column(float, nullable=True), # Có thể null nếu không parse được
-    "Giá cao nhất": pa.Column(float, nullable=True),
+    "Loại nông sản": pa.Column(pl.String, nullable=False),
+    "Phân hạng": pa.Column(pl.String, nullable=True),
+    "Khu vực": pa.Column(pl.String, nullable=False),
+    "Ngày thu thập": pa.Column(pl.String, nullable=False),
+    "Giá thấp nhất": pa.Column(pl.Int64, nullable=True),
+    "Giá cao nhất": pa.Column(pl.Int64, nullable=True),
 })
 
 def validate_data(df: pl.DataFrame, name: str) -> pl.DataFrame:
-    """Xác thực dữ liệu trước khi lưu vào Silver"""
+    """Xác thực dữ liệu trực tiếp bằng chuẩn Polars"""
     try:
-        # Convert qua pandas để validation ổn định nhất với pandera
-        pdf = df.to_pandas()
-        silver_schema.validate(pdf)
+        # SỬA TẠI ĐÂY: Xóa bỏ việc chuyển qua pandas, validate trực tiếp df của polars
+        silver_schema.validate(df)
         logger.info(f"✅ Data validation passed for {name}")
         return df
     except Exception as e:

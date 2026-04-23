@@ -1,0 +1,7 @@
+.vscode/settings.json
+.env
+data/
+postgres_data/
+__pycache__/
+*.pyc
+.venv/

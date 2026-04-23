@@ -6,3 +6,4 @@ pandera
 sqlalchemy
 psycopg2-binary
 pyarrow
+python-dotenv

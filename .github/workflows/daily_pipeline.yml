@@ -25,7 +25,7 @@ jobs:
         
       - name: Chạy Pipeline (Cào -> Làm sạch -> Đẩy lên Neon Database)
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEON_DB_URL: ${{ secrets.NEON_DB_URL }}
         run: python run_pipeline.py
         
       - name: Gửi Email Thông Báo Thành Công
@@ -47,10 +47,30 @@ jobs:
               server.login(os.environ['SMTP_USER'], os.environ['SMTP_PASSWORD'])
               server.send_message(msg)
               server.quit()
-              print('Đã gửi email thông báo thành công.')
           except Exception as e:
               print(f'Lỗi khi gửi email: {e}')
           "
-          else
-            echo "Không tìm thấy SMTP_USER. Bỏ qua gửi email."
+          fi
+
+      - name: Gửi Email Thông Báo THẤT BẠI (Mới thêm)
+        if: failure() # CHỈ CHẠY KHI PIPELINE BỊ SẬP
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+        run: |
+          if [ ! -z "$SMTP_USER" ]; then
+            python -c "
+          import smtplib, os, datetime
+          from email.mime.text import MIMEText
+          msg = MIMEText('Pipeline hôm nay đã gặp lỗi. Vui lòng kiểm tra log trên GitHub Actions.')
+          msg['Subject'] = f'❌ [Agri-Pipeline Cloud] BÁO ĐỘNG LỖI {datetime.date.today()}'
+          msg['From'] = os.environ['SMTP_USER']
+          msg['To'] = os.environ['SMTP_USER']
+          try:
+              server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+              server.login(os.environ['SMTP_USER'], os.environ['SMTP_PASSWORD'])
+              server.send_message(msg)
+              server.quit()
+          except Exception: pass
+          "
           fi
