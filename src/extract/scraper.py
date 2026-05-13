@@ -119,7 +119,6 @@ if __name__ == "__main__":
     scraper.run_generic_scraper(
         url='https://banggianongsan.com/bang-gia-hat-dieu/',
         prefix_name='hat_dieu',
-        expected_cols=3,
-        columns_names=["Phân loại / Khu vực", "Giá", "Thay đổi (+/-)"],
-        is_cashew=True
+        expected_cols=4,
+        columns_names=["Nông sản", "Giá cũ", "Giá mới", "Thay đổi"]
     )

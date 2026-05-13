@@ -1,36 +1,39 @@
 import os
-import re
-from src.transform.cleaner import clean_durian_data, clean_pepper_data, clean_cashew_data
-from src.transform.gold_maker import create_gold_fact_table
+import sys
+import glob
+import logging
+import subprocess
 
-print("BẮT ĐẦU SỬA LỖI TỪ NGÀY 20/03 TRỞ ĐI...")
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - [%(levelname)s] - %(message)s')
+logger = logging.getLogger("BackfillRunner")
 
-# 1. Quét tìm tất cả các file
-bronze_files = os.listdir("data/bronze")
-dates = set()
-for f in bronze_files:
-    match = re.search(r'\d{4}-\d{2}-\d{2}', f)
-    if match:
-        date_str = match.group()
-        # CHỈ ĐỊNH RÕ: Chỉ lấy các ngày từ 20/03/2026 trở về hiện tại
-        if date_str >= '2026-03-20':
-            dates.add(date_str)
+def run_step(script_path, run_date):
+    try:
+        subprocess.run([sys.executable, script_path, run_date], check=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"❌ Lỗi khi chạy {script_path} cho ngày {run_date}: {e}")
 
-# 2. Vòng lặp cỗ máy thời gian (Đã giới hạn ngày)
-for d in sorted(list(dates)):
-    print(f"\n{'='*20} ĐANG XỬ LÝ LẠI NGÀY {d} {'='*20}")
+def run_backfill():
+    # Tìm tất cả các file trong thư mục bronze để lấy danh sách các ngày
+    bronze_files = glob.glob("data/bronze/*_raw_*.csv")
+    dates = set()
+    for file in bronze_files:
+        filename = os.path.basename(file)
+        # Tên file dạng: hat_dieu_raw_YYYY-MM-DD.csv
+        parts = filename.split('_raw_')
+        if len(parts) == 2:
+            date_part = parts[1].replace('.csv', '')
+            dates.add(date_part)
+            
+    dates = sorted(list(dates))
+    logger.info(f"Đã tìm thấy {len(dates)} ngày cần backfill: {dates}")
     
-    # Dùng try-except để nếu một loại nông sản bị lỗi (do thiếu file), các loại khác vẫn chạy tiếp
-    try: clean_durian_data(d)
-    except Exception as e: print(f"Bỏ qua Sầu riêng ngày {d}: {e}")
+    for date in dates:
+        logger.info(f"--- ĐANG BACKFILL CHO NGÀY {date} ---")
+        run_step("src/transform/cleaner.py", date)
+        run_step("src/transform/gold_maker.py", date)
         
-    try: clean_pepper_data(d)
-    except Exception as e: print(f"Bỏ qua Tiêu ngày {d}: {e}")
-        
-    try: clean_cashew_data(d)
-    except Exception as e: print(f"Bỏ qua Hạt điều ngày {d}: {e}")
-        
-    # Chạy tầng Gold
-    create_gold_fact_table(d)
+    logger.info("🎉 BACKFILL HOÀN TẤT! 🎉")
 
-print("\n🎉 BACKFILL HOÀN TẤT! DỮ LIỆU TỪ 20/03 ĐÃ ĐƯỢC CHUẨN HÓA.")
+if __name__ == "__main__":
+    run_backfill()

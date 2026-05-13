@@ -1,13 +1,13 @@
-﻿Loại nông sản,Phân hạng,Khu vực,Ngày thu thập,Giá thấp nhất,Giá cao nhất
-Hồ tiêu,,Đắk Lắk,2026-04-16,140000,140000
-Hồ tiêu,,Gia Lai,2026-04-16,139500,139500
-Hồ tiêu,,Đắk Nông,2026-04-16,139000,139000
-Hồ tiêu,,Vũng Tàu,2026-04-16,138500,138500
-Hồ tiêu,,Bình Phước,2026-04-16,138500,138500
-Hồ tiêu,,Đồng Nai,2026-04-16,139000,139000
-Hồ tiêu,,,2026-04-16,7065,7065
-Hồ tiêu,,,2026-04-16,6150,6150
-Hồ tiêu,,,2026-04-16,9300,9300
-Hồ tiêu,,,2026-04-16,9308,9308
-Hồ tiêu,,,2026-04-16,9000,9000
-Hồ tiêu,,,2026-04-16,12200,12200
+﻿Loại nông sản,Phân hạng,Khu vực,Ngày thu thập,Giá thấp nhất,Giá cao nhất,Đơn vị
+Hồ tiêu,Tiêu đen,Đắk Lắk,2026-04-16,140000.0,140000.0,đ/kg
+Hồ tiêu,Tiêu đen,Gia Lai,2026-04-16,139500.0,139500.0,đ/kg
+Hồ tiêu,Tiêu đen,Đắk Nông,2026-04-16,139000.0,139000.0,đ/kg
+Hồ tiêu,Tiêu đen,Vũng Tàu,2026-04-16,138500.0,138500.0,đ/kg
+Hồ tiêu,Tiêu đen,Bình Phước,2026-04-16,138500.0,138500.0,đ/kg
+Hồ tiêu,Tiêu đen,Đồng Nai,2026-04-16,139000.0,139000.0,đ/kg
+Hồ tiêu,Tiêu đen,Indonesia,2026-04-16,7065.0,7065.0,USD/tấn
+Hồ tiêu,Tiêu đen,Brazil,2026-04-16,6150.0,6150.0,USD/tấn
+Hồ tiêu,Tiêu đen,Malaysia,2026-04-16,9300.0,9300.0,USD/tấn
+Hồ tiêu,Tiêu trắng,Indonesia,2026-04-16,9308.0,9308.0,USD/tấn
+Hồ tiêu,Tiêu trắng,Việt Nam,2026-04-16,9000.0,9000.0,USD/tấn
+Hồ tiêu,Tiêu trắng,Malaysia,2026-04-16,12200.0,12200.0,USD/tấn

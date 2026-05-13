@@ -49,20 +49,25 @@ def process_silver_file(file_path, phan_hang_default=None):
     if phan_hang_default:
         df = df.with_columns(pl.col('Phân hạng').fill_null(pl.lit(phan_hang_default)))
         
+    # Đảm bảo cột Đơn vị tồn tại (cho tương thích ngược với dữ liệu cũ)
+    if 'Đơn vị' not in df.columns:
+        df = df.with_columns(pl.lit('đ/kg').alias('Đơn vị'))
+    
     df = df.with_columns([
         pl.col('Loại nông sản').cast(pl.String),
         pl.col('Phân hạng').cast(pl.String),
         pl.col('Khu vực').cast(pl.String),
         pl.col('Ngày thu thập').cast(pl.String),
-        pl.col('Giá thấp nhất').cast(pl.Int64, strict=False),
-        pl.col('Giá cao nhất').cast(pl.Int64, strict=False),
+        pl.col('Giá thấp nhất').cast(pl.Float64, strict=False),
+        pl.col('Giá cao nhất').cast(pl.Float64, strict=False),
+        pl.col('Đơn vị').cast(pl.String),
     ])
     
     df = df.with_columns([
-        ((pl.col('Giá thấp nhất') + pl.col('Giá cao nhất')) / 2).cast(pl.Int64).alias('Giá trung bình')
+        ((pl.col('Giá thấp nhất') + pl.col('Giá cao nhất')) / 2).alias('Giá trung bình')
     ])
     
-    common_columns = ['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất', 'Giá trung bình']
+    common_columns = ['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất', 'Giá trung bình', 'Đơn vị']
     return df.select(common_columns)
 
 def create_gold_fact_table(date_str):
@@ -77,7 +82,7 @@ def create_gold_fact_table(date_str):
     if df_sr is not None: df_list.append(df_sr)
         
     # Hồ Tiêu
-    df_tieu = process_silver_file(os.path.join(silver_dir, f"tieu_clean_{date_str}.csv"), phan_hang_default="Tiêu đen")
+    df_tieu = process_silver_file(os.path.join(silver_dir, f"tieu_clean_{date_str}.csv"))
     if df_tieu is not None: df_list.append(df_tieu)
         
     # Hạt Điều

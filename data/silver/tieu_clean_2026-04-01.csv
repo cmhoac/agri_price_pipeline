@@ -1,6 +1,6 @@
-﻿Loại nông sản,Phân hạng,Khu vực,Ngày thu thập,Giá thấp nhất,Giá cao nhất
-Hồ tiêu,,Đắk Lắk,2026-04-01,141000,141000
-Hồ tiêu,,Gia Lai,2026-04-01,140000,140000
-Hồ tiêu,,Đắk Nông,2026-04-01,140500,140500
-Hồ tiêu,,Vũng Tàu,2026-04-01,141000,141000
-Hồ tiêu,,Bình Phước,2026-04-01,140000,140000
+﻿Loại nông sản,Phân hạng,Khu vực,Ngày thu thập,Giá thấp nhất,Giá cao nhất,Đơn vị
+Hồ tiêu,Tiêu đen,Đắk Lắk,2026-04-01,141000.0,141000.0,đ/kg
+Hồ tiêu,Tiêu đen,Gia Lai,2026-04-01,140000.0,140000.0,đ/kg
+Hồ tiêu,Tiêu đen,Đắk Nông,2026-04-01,140500.0,140500.0,đ/kg
+Hồ tiêu,Tiêu đen,Vũng Tàu,2026-04-01,141000.0,141000.0,đ/kg
+Hồ tiêu,Tiêu đen,Bình Phước,2026-04-01,140000.0,140000.0,đ/kg

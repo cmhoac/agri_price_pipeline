@@ -37,14 +37,14 @@ silver_schema = pa.DataFrameSchema({
     "Phân hạng": pa.Column(pl.String, nullable=True),
     "Khu vực": pa.Column(pl.String, nullable=False),
     "Ngày thu thập": pa.Column(pl.String, nullable=False),
-    "Giá thấp nhất": pa.Column(pl.Int64, nullable=True),
-    "Giá cao nhất": pa.Column(pl.Int64, nullable=True),
+    "Giá thấp nhất": pa.Column(pl.Float64, nullable=True),
+    "Giá cao nhất": pa.Column(pl.Float64, nullable=True),
+    "Đơn vị": pa.Column(pl.String, nullable=False),
 })
 
 def validate_data(df: pl.DataFrame, name: str) -> pl.DataFrame:
     """Xác thực dữ liệu trực tiếp bằng chuẩn Polars"""
     try:
-        # SỬA TẠI ĐÂY: Xóa bỏ việc chuyển qua pandas, validate trực tiếp df của polars
         silver_schema.validate(df)
         logger.info(f"✅ Data validation passed for {name}")
         return df
@@ -53,6 +53,9 @@ def validate_data(df: pl.DataFrame, name: str) -> pl.DataFrame:
         # Dù fail vẫn return để không làm sập toàn bộ pipeline, nhưng có log báo động
         return df
 
+# ==========================================
+# 3. Durian Cleaner
+# ==========================================
 def clean_durian_data(date_str):
     bronze_path = os.path.join("data", "bronze", f"sau_rieng_raw_{date_str}.csv")
     if not os.path.exists(bronze_path): return
@@ -65,20 +68,24 @@ def clean_durian_data(date_str):
     
     durian_name_map = {
         "Sầu riêng Thái": "Thái", "Sầu riêng Ri6": "Ri6", "Sầu riêng Musang King": "Musang King",
-        "Sầu riêng Chuồng bò": "Chuồng Bò", "Chuồng bò": "Chuồng Bò", "Sáp Hữu": "Sáu Hữu", "Thái Lan": "Thái"
+        "Sầu riêng Chuồng bò": "Chuồng Bò", "Chuồng bò": "Chuồng Bò", "Sáp Hữu": "Sáu Hữu",
+        "Thái Lan": "Thái",
     }
 
     durian_grade_map = {
         "Loại A": "A", "Mẫu đẹp A": "A", "A": "A", "Loại B": "B", "Mẫu đẹp B": "B", "B": "B",
-        "Loại C": "C", "C": "C", "C-D": "C-D", "VIP A": "VIP A", "VIP B": "VIP B",
+        "Loại C": "C", "C": "C", "C-D": "C-D",
         "Dạt": "Dạt", "Dạt nặng": "Dạt nặng", "Lỗi": "Lỗi", "Kem": "Kem"
     }
 
-    grade_regex = r'(?i)\s*\(?\s*(VIP A|VIP B|Mẫu đẹp A|Mẫu đẹp B|Loại A|Loại B|Loại C|C-D|A|B|C|D|Dạt nặng|Dạt|Lỗi|Kem)\s*\)?$'
+    # Regex cải tiến: xóa mọi dạng đơn vị trong ngoặc cuối cùng (đ/kg), (đồng/kg), (vnđ/kg)
+    unit_strip_regex = r'\s*\([^)]*\)\s*$'
+    # Lưu ý: KHÔNG capture "VIP A/B/C" — VIP là phần tên sản phẩm (Thái VIP), chỉ capture grade cuối (A/B/C)
+    grade_regex = r'(?i)\s*\(?\s*(Mẫu đẹp A|Mẫu đẹp B|Loại A|Loại B|Loại C|C-D|A|B|C|D|Dạt nặng|Dạt|Lỗi|Kem)\s*\)?$'
 
     df_silver = (
         df_raw
-        .with_columns(pl.col('Nông sản').str.replace(r'\s*\(đ/kg\)', '').alias('Nông_sản_sạch'))
+        .with_columns(pl.col('Nông sản').str.replace(unit_strip_regex, '').str.strip_chars().alias('Nông_sản_sạch'))
         .with_columns([
             pl.col('Nông_sản_sạch').str.extract(grade_regex, 1).alias('Phân hạng_Raw'),
             pl.col('Nông_sản_sạch').str.replace(grade_regex, '').str.strip_chars().alias('Raw_Name'),
@@ -92,11 +99,13 @@ def clean_durian_data(date_str):
             pl.col('Giá mới').str.replace_all(r'\.', '').str.extract_all(r'\d+').cast(pl.List(pl.Int64)).alias('Mảng_số')
         )
         .with_columns([
-            pl.col('Mảng_số').list.min().alias('Giá thấp nhất'),
-            pl.col('Mảng_số').list.max().alias('Giá cao nhất'),
-            pl.col('Khu vực').str.strip_chars().replace(REGION_MAP).alias('Khu vực')
+            pl.col('Mảng_số').list.min().cast(pl.Float64).alias('Giá thấp nhất'),
+            pl.col('Mảng_số').list.max().cast(pl.Float64).alias('Giá cao nhất'),
+            pl.col('Khu vực').str.strip_chars().replace(REGION_MAP).alias('Khu vực'),
+            pl.lit('đ/kg').alias('Đơn vị')
         ])
-        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất'])
+        .filter(~pl.col('Giá mới').str.contains('(?i)thương lượng'))
+        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất', 'Đơn vị'])
     )
     
     df_silver = validate_data(df_silver, "Durian")
@@ -106,6 +115,9 @@ def clean_durian_data(date_str):
     silver_path = os.path.join(output_dir, f"sau_rieng_clean_{date_str}.csv")
     df_silver.write_csv(silver_path, include_bom=True)
 
+# ==========================================
+# 4. Pepper Cleaner
+# ==========================================
 def clean_pepper_data(date_str):
     bronze_path = os.path.join("data", "bronze", f"tieu_raw_{date_str}.csv")
     if not os.path.exists(bronze_path): return
@@ -113,35 +125,56 @@ def clean_pepper_data(date_str):
     logger.info(f"Đang xử lý làm sạch file: {bronze_path}...")
     df_raw = pl.read_csv(bronze_path, infer_schema_length=0)
     
-    if 'Khu vực' in df_raw.columns:
-        if 'Giá hôm nay' in df_raw.columns:
-            df_raw = df_raw.rename({'Giá hôm nay': 'Giá mới'})
-        df = df_raw.with_columns([pl.lit('Hồ tiêu').alias('Loại nông sản'), pl.lit(None).alias('Phân hạng')])
-    else:
-        df = (df_raw
-              .with_columns([
-                  pl.lit('Hồ tiêu').alias('Loại nông sản'),
-                  pl.lit(None).alias('Phân hạng'),
-                  pl.col('Nông sản').str.extract(r'Hồ tiêu\s+(.*?)(?:\s*\(|$)').alias('Khu vực')
-              ]))
+    if 'Giá hôm nay' in df_raw.columns:
+        df_raw = df_raw.rename({'Giá hôm nay': 'Giá mới'})
 
+    # Bước 1: Trích xuất đơn vị, phân hạng, khu vực từ cột "Nông sản"
+    # Ví dụ: "Hồ Tiêu Đắk Lắk (đ/kg)" → Khu vực: Đắk Lắk, Phân hạng: Tiêu đen, Đơn vị: đ/kg
+    # Ví dụ: "Tiêu Đen Indonesia (USD/tấn)" → Khu vực: Indonesia, Phân hạng: Tiêu đen, Đơn vị: USD/tấn
+    # Ví dụ: "Tiêu Trắng Malaysia ASTA (USD/tấn)" → Khu vực: Malaysia, Phân hạng: Tiêu trắng, Đơn vị: USD/tấn
     df = (
-        df.with_columns(
+        df_raw
+        .with_columns([
+            pl.lit('Hồ tiêu').alias('Loại nông sản'),
+            # Trích xuất đơn vị từ ngoặc
+            pl.col('Nông sản').str.extract(r'\(([^)]+)\)').alias('Đơn vị'),
+            # Xóa đơn vị để lấy tên sạch
+            pl.col('Nông sản').str.replace(r'\s*\([^)]*\)\s*$', '').str.strip_chars().alias('Tên_sạch'),
+        ])
+        .with_columns([
+            # Phân hạng: Tiêu trắng hay Tiêu đen
+            pl.when(pl.col('Tên_sạch').str.contains(r'(?i)Tiêu Trắng'))
+              .then(pl.lit('Tiêu trắng'))
+              .otherwise(pl.lit('Tiêu đen'))
+              .alias('Phân hạng'),
+            # Khu vực: phần còn lại sau khi xóa prefix loại tiêu và suffix ASTA
+            pl.col('Tên_sạch')
+              .str.replace(r'(?i)^(?:Hồ Tiêu|Tiêu Đen|Tiêu Trắng)\s+', '')
+              .str.replace(r'(?i)\s*ASTA\s*\d*$', '')
+              .str.strip_chars()
+              .alias('Khu vực'),
+        ])
+        .with_columns(
             pl.col('Giá mới').str.replace_all(r'\.', '').str.extract_all(r'\d+').cast(pl.List(pl.Int64)).alias('Mảng_số')
         )
         .with_columns([
-            pl.col('Mảng_số').list.min().alias('Giá thấp nhất'),
-            pl.col('Mảng_số').list.max().alias('Giá cao nhất'),
+            pl.col('Mảng_số').list.min().cast(pl.Float64).alias('Giá thấp nhất'),
+            pl.col('Mảng_số').list.max().cast(pl.Float64).alias('Giá cao nhất'),
             pl.col('Khu vực').str.strip_chars().replace(REGION_MAP).alias('Khu vực')
         ])
-        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất'])
+        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất', 'Đơn vị'])
     )
     
     df = validate_data(df, "Pepper")
     
-    silver_path = os.path.join("data", "silver", f"tieu_clean_{date_str}.csv")
+    output_dir = os.path.join("data", "silver")
+    os.makedirs(output_dir, exist_ok=True)
+    silver_path = os.path.join(output_dir, f"tieu_clean_{date_str}.csv")
     df.write_csv(silver_path, include_bom=True)
 
+# ==========================================
+# 5. Cashew Cleaner
+# ==========================================
 def get_vcb_usd_rate():
     try:
         url = "https://portal.vietcombank.com.vn/Usercontrols/TVPortal.TyGia/pXML.aspx"
@@ -159,40 +192,63 @@ def clean_cashew_data(date_str):
     if not os.path.exists(bronze_path): return
         
     logger.info(f"Đang xử lý làm sạch file: {bronze_path}...")
-    usd_rate = get_vcb_usd_rate()
     df_raw = pl.read_csv(bronze_path, infer_schema_length=0)
-    
-    if 'Phân loại / Khu vực' in df_raw.columns:
-        df_raw = df_raw.rename({'Phân loại / Khu vực': 'Cột_hỗn_hợp'})
-    if 'Thay đổi (+/-)' in df_raw.columns:
-        df_raw = df_raw.drop(['Thay đổi (+/-)'])
+
+    if 'Giá hôm nay' in df_raw.columns:
+        df_raw = df_raw.rename({'Giá hôm nay': 'Giá mới'})
         
+    # Tương thích ngược với file cũ (3 cột)
+    if 'Phân loại / Khu vực' in df_raw.columns:
+        df_raw = df_raw.rename({'Phân loại / Khu vực': 'Nông sản'})
+    if 'Giá' in df_raw.columns:
+        df_raw = df_raw.rename({'Giá': 'Giá mới'})
+
+    # Cấu trúc mới: 4 cột: Nông sản, Giá cũ, Giá mới, Thay đổi
     df = (
         df_raw
         .with_columns([
             pl.lit('Hạt điều').alias('Loại nông sản'),
-            pl.when(pl.col('Cột_hỗn_hợp').str.contains('(?i)W|Nhân trắng'))
-              .then(pl.lit('Toàn thị trường')).otherwise(pl.col('Cột_hỗn_hợp')).alias('Khu vực'),
-            pl.when(pl.col('Cột_hỗn_hợp').str.contains('(?i)W|Nhân trắng'))
-              .then(pl.col('Cột_hỗn_hợp')).otherwise(pl.lit('Hạt tươi')).alias('Phân hạng'),
+            # Trích xuất đơn vị từ ngoặc
+            pl.col('Nông sản').str.extract(r'\(([^)]+)\)').alias('Đơn_vị_raw'),
+            # Xóa đơn vị để lấy tên sạch
+            pl.col('Nông sản').str.replace(r'\s*\([^)]*\)\s*$', '').str.strip_chars().alias('Tên_sạch'),
         ])
+        # Lọc bỏ các dòng có đơn vị là USD/kg
+        .filter(~pl.col('Đơn_vị_raw').str.contains('(?i)USD'))
         .with_columns([
-            pl.when(pl.col('Giá').str.contains('USD'))
-              .then(pl.col('Giá').str.extract_all(r'[0-9]*\.[0-9]+|[0-9]+').list.eval(pl.element().cast(pl.Float64) * usd_rate).cast(pl.List(pl.Int64)))
-              .otherwise(pl.col('Giá').str.replace_all(r'\.', '').str.extract_all(r'\d+').cast(pl.List(pl.Int64)))
-              .alias('Mảng_số')
+            # Đơn vị chuẩn hóa (chỉ còn VNĐ)
+            pl.lit('vnđ/kg').alias('Đơn vị'),
+            # Phân hạng: trích xuất W-grade hoặc mặc định "Điều tươi"
+            pl.when(pl.col('Tên_sạch').str.contains(r'(?i)W\d+'))
+              .then(pl.col('Tên_sạch').str.extract(r'(W\d+)'))
+              .otherwise(pl.lit('Điều tươi'))
+              .alias('Phân hạng'),
+            # Khu vực: cho điều tươi → tên tỉnh; cho nhân → Toàn thị trường
+            pl.when(pl.col('Tên_sạch').str.contains(r'(?i)^Điều tươi'))
+              .then(pl.col('Tên_sạch').str.replace(r'(?i)^Điều tươi\s+', '').str.strip_chars())
+              .otherwise(pl.lit('Toàn thị trường'))
+              .alias('Khu vực'),
         ])
+        .with_columns(
+            pl.col('Giá mới')
+              .str.replace_all(r'\.', '')
+              .str.extract_all(r'\d+')
+              .cast(pl.List(pl.Float64))
+              .alias('Mảng_số')
+        )
         .with_columns([
             pl.col('Mảng_số').list.min().alias('Giá thấp nhất'),
             pl.col('Mảng_số').list.max().alias('Giá cao nhất'),
-            pl.col('Khu vực').str.strip_chars().replace(REGION_MAP).alias('Khu vực')
+            pl.col('Khu vực').str.strip_chars().replace(REGION_MAP).alias('Khu vực'),
         ])
-        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất'])
+        .select(['Loại nông sản', 'Phân hạng', 'Khu vực', 'Ngày thu thập', 'Giá thấp nhất', 'Giá cao nhất', 'Đơn vị'])
     )
     
     df = validate_data(df, "Cashew")
     
-    silver_path = os.path.join("data", "silver", f"hat_dieu_clean_{date_str}.csv")
+    output_dir = os.path.join("data", "silver")
+    os.makedirs(output_dir, exist_ok=True)
+    silver_path = os.path.join(output_dir, f"hat_dieu_clean_{date_str}.csv")
     df.write_csv(silver_path, include_bom=True)
 
 if __name__ == "__main__":
